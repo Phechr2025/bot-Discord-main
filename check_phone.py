@@ -2,21 +2,46 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import config
 import os
+from pathlib import Path
 
 def find_user_by_phone(phone):
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    credentials_path = os.path.join(os.path.dirname(__file__), "credentials.json")
-    creds = ServiceAccountCredentials.from_json_keyfile_name(credentials_path, scope)
+    try:
+        # ตรวจสอบไฟล์ credentials
+        creds_path = Path(__file__).parent / "credentials.json"
+        if not creds_path.exists():
+            raise FileNotFoundError("credentials.json not found")
+            
+        print(f"🔑 Using credentials from: {creds_path}")
 
-    client = gspread.authorize(creds)
-    sheet = client.open_by_url(config.GOOGLE_SHEET_URL).worksheet(config.SHEET_NAME)
-    data = sheet.get_all_values()
+        # ตั้งค่า scope
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        
+        # สร้าง credentials
+        creds = ServiceAccountCredentials.from_json_keyfile_name(
+            str(creds_path), scope
+        )
+        
+        # สร้าง client
+        client = gspread.authorize(creds)
+        print("🔗 Connected to Google Sheets API")
 
-    headers = data[0]  # แถวหัวตาราง เช่น ['เบอร์โทร', 'ชื่อ', 'สถานะ', ...]
-    
-    for i in range(1, len(data)):  # ข้ามแถวหัวตาราง
-        row = data[i]
-        if len(row) > 0 and row[0].strip() == phone.strip():  # ตรวจเบอร์ในคอลัมน์ A
-            return dict(zip(headers, row))  # คืนค่าแถวทั้งแถวแบบเป็น dictionary
+        # เปิด Sheet
+        sheet = client.open_by_url(config.GOOGLE_SHEET_URL).worksheet(config.SHEET_NAME)
+        print(f"📊 Accessing sheet: {config.SHEET_NAME}")
+        
+        # อ่านข้อมูล
+        data = sheet.get_all_values()
+        headers = data[0]
 
-    return None
+        for i, row in enumerate(data[1:], start=1):
+            if row and row[0].strip() == phone.strip():
+                return dict(zip(headers, row))
+                
+        return None
+
+    except Exception as e:
+        print(f"❌ Error accessing Google Sheet: {str(e)}")
+        raise
