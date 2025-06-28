@@ -1,5 +1,5 @@
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 import config
 import os
 from datetime import datetime
@@ -10,28 +10,29 @@ logger = logging.getLogger(__name__)
 
 def find_user_by_phone(phone):
     try:
-        # ตรวจสอบเวลาเซิร์ฟเวอร์
         logger.info(f"🕒 Server time: {datetime.utcnow()} UTC")
         
-        # ตรวจสอบว่าไฟล์ credentials.json มีอยู่จริง
+        # ตรวจสอบว่าไฟล์ credentials.json มีอยู่
         if not os.path.exists("credentials.json"):
             raise FileNotFoundError("credentials.json not found")
         
         logger.info("🔑 Using credentials.json for authentication")
         
         # ตั้งค่า scope
-        scope = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
+        SCOPES = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
         ]
         
         # สร้าง credentials
-        creds = ServiceAccountCredentials.from_json_keyfile_name(
-            "credentials.json", scope
+        creds = Credentials.from_service_account_file(
+            "credentials.json", scopes=SCOPES
         )
         
         # สร้าง client
-        client = gspread.authorize(creds)
+        client = gspread.Client(auth=creds)
+        client.session.headers.update({'Authorization': f'Bearer {creds.token}'})
+        
         logger.info("✅ Successfully authenticated with Google API")
         
         # เปิด Sheet
