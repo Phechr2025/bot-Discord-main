@@ -1,9 +1,9 @@
-import gspread
-from google.oauth2.service_account import Credentials
 import config
 import os
 from datetime import datetime
 import logging
+import gspread
+from google.oauth2.service_account import Credentials
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,38 +19,39 @@ def find_user_by_phone(phone):
         logger.info("🔑 Using credentials.json for authentication")
         
         # ตั้งค่า scope
-        SCOPES = [
-            'https://www.googleapis.com/auth/spreadsheets',
-            'https://www.googleapis.com/auth/drive'
-        ]
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
         
-        # สร้าง credentials
-        creds = Credentials.from_service_account_file(
-            "credentials.json", scopes=SCOPES
-        )
-        
-        # สร้าง client
-        client = gspread.Client(auth=creds)
-        client.session.headers.update({'Authorization': f'Bearer {creds.token}'})
+        # สร้าง client ด้วย gspread
+        client = gspread.service_account("credentials.json", scopes=SCOPES)
         
         logger.info("✅ Successfully authenticated with Google API")
         
-        # เปิด Sheet
-        try:
-            spreadsheet = client.open_by_url(config.GOOGLE_SHEET_URL)
-            sheet = spreadsheet.worksheet(config.SHEET_NAME)
-            logger.info(f"📊 Accessing sheet: {config.SHEET_NAME}")
-        except Exception as e:
-            logger.error(f"❌ Failed to access sheet: {str(e)}")
-            raise
+        # ดึง Sheet ID จาก URL
+        if '/d/' in config.GOOGLE_SHEET_URL:
+            sheet_id = config.GOOGLE_SHEET_URL.split('/d/')[1].split('/')[0]
+        else:
+            sheet_id = config.GOOGLE_SHEET_URL.split('/')[-1]
+        
+        logger.info(f"📊 Accessing sheet ID: {sheet_id}")
+        
+        # เปิด spreadsheet
+        spreadsheet = client.open_by_key(sheet_id)
+        sheet = spreadsheet.worksheet(config.SHEET_NAME)
         
         # อ่านข้อมูล
         data = sheet.get_all_values()
+        
+        if not data:
+            logger.warning("⚠️ No data found in sheet")
+            return None
+        
         headers = data[0]
-
-        for i, row in enumerate(data[1:], start=1):
+        
+        for row in data[1:]:
             if row and row[0].strip() == phone.strip():
-                return dict(zip(headers, row))
+                # เติมข้อมูลให้ครบตามจำนวนคอลัมน์
+                full_row = row + [''] * (len(headers) - len(row))
+                return dict(zip(headers, full_row))
                 
         return None
 
