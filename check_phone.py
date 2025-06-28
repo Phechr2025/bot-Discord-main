@@ -21,8 +21,13 @@ def find_user_by_phone(phone):
         # ตั้งค่า scope
         SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
         
-        # สร้าง client ด้วย gspread
-        client = gspread.service_account("credentials.json", scopes=SCOPES)
+        # สร้าง credentials
+        creds = Credentials.from_service_account_file(
+            "credentials.json", scopes=SCOPES
+        )
+        
+        # สร้าง client ด้วย credentials
+        client = gspread.Client(auth=creds)
         
         logger.info("✅ Successfully authenticated with Google API")
         
@@ -33,6 +38,31 @@ def find_user_by_phone(phone):
             sheet_id = config.GOOGLE_SHEET_URL.split('/')[-1]
         
         logger.info(f"📊 Accessing sheet ID: {sheet_id}")
+        
+        # เปิด spreadsheet
+        spreadsheet = client.open_by_key(sheet_id)
+        sheet = spreadsheet.worksheet(config.SHEET_NAME)
+        
+        # อ่านข้อมูล
+        data = sheet.get_all_values()
+        
+        if not data:
+            logger.warning("⚠️ No data found in sheet")
+            return None
+        
+        headers = data[0]
+        
+        for row in data[1:]:
+            if row and row[0].strip() == phone.strip():
+                # เติมข้อมูลให้ครบตามจำนวนคอลัมน์
+                full_row = row + [''] * (len(headers) - len(row))
+                return dict(zip(headers, full_row))
+                
+        return None
+
+    except Exception as e:
+        logger.error(f"🔥 Critical error: {str(e)}")
+        raise
         
         # เปิด spreadsheet
         spreadsheet = client.open_by_key(sheet_id)
